@@ -15,15 +15,20 @@ export interface RefreshTokenPayload extends JWTPayload {
   sessionId: string;
 }
 
-const accessSecret = new TextEncoder().encode(AUTH_CONFIG.jwt.accessTokenSecret);
-const refreshSecret = new TextEncoder().encode(AUTH_CONFIG.jwt.refreshTokenSecret);
+function getAccessSecret() {
+  return new TextEncoder().encode(AUTH_CONFIG.jwt.accessTokenSecret);
+}
+
+function getRefreshSecret() {
+  return new TextEncoder().encode(AUTH_CONFIG.jwt.refreshTokenSecret);
+}
 
 export async function signAccessToken(payload: Omit<TokenPayload, "iat" | "exp">): Promise<string> {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(AUTH_CONFIG.jwt.accessTokenExpiry)
-    .sign(accessSecret);
+    .sign(getAccessSecret());
 }
 
 export async function signRefreshToken(payload: Omit<RefreshTokenPayload, "iat" | "exp">): Promise<string> {
@@ -31,12 +36,12 @@ export async function signRefreshToken(payload: Omit<RefreshTokenPayload, "iat" 
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(AUTH_CONFIG.jwt.refreshTokenExpiry)
-    .sign(refreshSecret);
+    .sign(getRefreshSecret());
 }
 
 export async function verifyAccessToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, accessSecret);
+    const { payload } = await jwtVerify(token, getAccessSecret());
     return payload as TokenPayload;
   } catch {
     return null;
@@ -45,7 +50,7 @@ export async function verifyAccessToken(token: string): Promise<TokenPayload | n
 
 export async function verifyRefreshToken(token: string): Promise<RefreshTokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, refreshSecret);
+    const { payload } = await jwtVerify(token, getRefreshSecret());
     return payload as RefreshTokenPayload;
   } catch {
     return null;
