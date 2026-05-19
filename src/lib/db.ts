@@ -1,22 +1,24 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaNeon } from "@prisma/adapter-neon";
-import { Pool, neonConfig } from "@neondatabase/serverless";
-
-neonConfig.poolQueryViaFetch = true;
 
 function createPrismaClient(): PrismaClient {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    // During build phase, return a dummy client that won't connect
+
+  if (!process.env.DATABASE_URL) {
     return new PrismaClient();
   }
 
+  // Use Neon serverless adapter only at runtime
+  const { PrismaNeon } = require("@prisma/adapter-neon");
+  const { Pool, neonConfig } = require("@neondatabase/serverless");
+
+  neonConfig.poolQueryViaFetch = true;
+
   const pool = new Pool({
-    connectionString,
+    connectionString: process.env.DATABASE_URL,
     max: 5,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
   });
+
   const adapter = new PrismaNeon(pool);
 
   return new PrismaClient({
