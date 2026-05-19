@@ -125,6 +125,22 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
+## 🔑 Demo Credentials
+
+Use these accounts to explore the system with different role-based dashboards:
+
+| Role | Email | Password | Access Level |
+|------|-------|----------|-------------|
+| **Admin** | `superadmin@teaestate.erp` | `T3@Estate#Adm!n2024$` | Full system access — all modules, user management, audit logs |
+| **Manager** | `manager@teaestate.erp` | `Test@1234` | Sales, production, inventory, dealers, reports |
+| **Supervisor** | `supervisor@teaestate.erp` | `Test@1234` | Production batches, employee view, inventory view, reports |
+| **Worker** | `worker@teaestate.erp` | `Test@1234` | Personal dashboard only — attendance, assigned tasks |
+| **Dealer** | `dealer@teaestate.erp` | `Test@1234` | Orders view, invoices view, payment history |
+
+> 💡 Each role sees a **completely different dashboard** with role-specific stats, charts, and navigation menu.
+
+---
+
 ## 🔐 Environment Variables
 
 Create a `.env` file in the root directory:
