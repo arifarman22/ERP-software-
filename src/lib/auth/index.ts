@@ -1,0 +1,10 @@
+export { AUTH_CONFIG } from "./config";
+export { authenticate, refreshAccessToken, logout } from "./service";
+export { signAccessToken, signRefreshToken, verifyAccessToken, verifyRefreshToken } from "./tokens";
+export { createSession, validateSession, revokeSession, revokeAllUserSessions, getActiveSessions } from "./sessions";
+export { hasPermission, hasAnyPermission, hasAllPermissions, getPermissions } from "./permissions";
+export { withAuth, withPermission, withRoles, getCurrentUser } from "./guards";
+export { logLoginAttempt, getLoginHistory } from "./audit";
+export type { TokenPayload, RefreshTokenPayload } from "./tokens";
+export type { Permission } from "./permissions";
+export type { AuthenticatedRequest } from "./guards";

@@ -1,0 +1,552 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ─── ENUMS ──────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  MANAGER
+  SUPERVISOR
+  WORKER
+  DEALER
+}
+
+enum ProductionStatus {
+  PENDING
+  IN_PROGRESS
+  QUALITY_CHECK
+  COMPLETED
+  CANCELLED
+}
+
+enum SaleStatus {
+  DRAFT
+  CONFIRMED
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+}
+
+enum MovementType {
+  INBOUND
+  OUTBOUND
+  TRANSFER
+  ADJUSTMENT
+}
+
+// ─── USERS & AUTH ───────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  phone     String?
+  role      Role     @default(WORKER)
+  isActive  Boolean  @default(true)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions      Session[]
+  refreshTokens RefreshToken[]
+  loginAudits   LoginAudit[]
+  employee      Employee?
+  dealer        Dealer?
+  gpsLogs       GpsLog[]
+  auditLogs     AuditLog[]
+
+  @@index([role])
+  @@index([email, isActive])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  lastActiveAt DateTime @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family    String
+  isRevoked Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@index([family])
+}
+
+model LoginAudit {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  email     String
+  success   Boolean
+  ipAddress String?
+  userAgent String?
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
+  @@index([createdAt])
+}
+
+// ─── EMPLOYEES ──────────────────────────────────────────────────────────────
+
+model Employee {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeCode String  @unique
+  department  String
+  designation String
+  address     String?
+  joinDate    DateTime @default(now())
+  salary      Decimal  @db.Decimal(12, 2)
+  isActive    Boolean  @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  attendances  Attendance[]
+  productions  ProductionBatch[]
+  wastages     Wastage[]
+
+  @@index([department])
+  @@index([isActive, deletedAt])
+}
+
+// ─── DEALERS ────────────────────────────────────────────────────────────────
+
+model Dealer {
+  id           String   @id @default(cuid())
+  userId       String?  @unique
+  user         User?    @relation(fields: [userId], references: [id])
+  dealerCode   String   @unique
+  companyName  String
+  contactName  String
+  phone        String
+  email        String?
+  address      String?
+  gstNumber    String?
+  creditLimit  Decimal  @default(0) @db.Decimal(12, 2)
+  balance      Decimal  @default(0) @db.Decimal(12, 2)
+  isActive     Boolean  @default(true)
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sales    Sale[]
+  invoices Invoice[]
+
+  @@index([companyName])
+  @@index([isActive, deletedAt])
+}
+
+// ─── PRODUCTS ───────────────────────────────────────────────────────────────
+
+model Product {
+  id          String   @id @default(cuid())
+  sku         String   @unique
+  name        String
+  description String?
+  category    String
+  teaGrade    String?
+  unitWeight  Decimal  @db.Decimal(10, 3)
+  unit        String   @default("kg")
+  basePrice   Decimal  @db.Decimal(12, 2)
+  isActive    Boolean  @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  inventoryItems    InventoryItem[]
+  productionBatches ProductionBatch[]
+  saleItems         SaleItem[]
+  blendRecipes      BlendRecipe[]
+
+  @@index([category])
+  @@index([sku])
+  @@index([isActive, deletedAt])
+}
+
+// ─── WAREHOUSES & INVENTORY ─────────────────────────────────────────────────
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  address   String
+  capacity  Decimal? @db.Decimal(12, 2)
+  isActive  Boolean  @default(true)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventoryItems    InventoryItem[]
+  movementsFrom     StockMovement[] @relation("FromWarehouse")
+  movementsTo       StockMovement[] @relation("ToWarehouse")
+
+  @@index([isActive])
+}
+
+model InventoryItem {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  warehouseId  String
+  warehouse    Warehouse @relation(fields: [warehouseId], references: [id])
+  batchId      String?
+  batch        ProductionBatch? @relation(fields: [batchId], references: [id])
+  quantity     Decimal  @db.Decimal(12, 3)
+  reservedQty  Decimal  @default(0) @db.Decimal(12, 3)
+  minStock     Decimal  @default(0) @db.Decimal(12, 3)
+  costPerUnit  Decimal  @db.Decimal(12, 2)
+  expiryDate   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  saleItems SaleItem[]
+
+  @@unique([productId, warehouseId, batchId])
+  @@index([warehouseId])
+  @@index([productId])
+  @@index([quantity])
+}
+
+model StockMovement {
+  id              String       @id @default(cuid())
+  type            MovementType
+  productId       String
+  fromWarehouseId String?
+  fromWarehouse   Warehouse?   @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String?
+  toWarehouse     Warehouse?   @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  quantity        Decimal      @db.Decimal(12, 3)
+  batchNumber     String?
+  reference       String?
+  notes           String?
+  createdAt       DateTime     @default(now())
+
+  @@index([type, createdAt])
+  @@index([productId])
+}
+
+// ─── RAW MATERIALS ──────────────────────────────────────────────────────────
+
+model RawMaterial {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  category    String
+  unit        String   @default("kg")
+  quantity    Decimal  @db.Decimal(12, 3)
+  minStock    Decimal  @default(0) @db.Decimal(12, 3)
+  costPerUnit Decimal  @db.Decimal(12, 2)
+  supplier    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  blendIngredients BlendIngredient[]
+  batchMaterials   BatchMaterial[]
+
+  @@index([category])
+  @@index([code])
+}
+
+// ─── BLEND RECIPES ──────────────────────────────────────────────────────────
+
+model BlendRecipe {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  outputProductId String
+  outputProduct   Product @relation(fields: [outputProductId], references: [id])
+  targetYield Decimal  @db.Decimal(5, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ingredients BlendIngredient[]
+  batches     ProductionBatch[]
+
+  @@index([code])
+}
+
+model BlendIngredient {
+  id            String      @id @default(cuid())
+  recipeId      String
+  recipe        BlendRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  rawMaterialId String
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id])
+  percentage    Decimal     @db.Decimal(5, 2)
+  quantity      Decimal     @db.Decimal(12, 3)
+
+  @@index([recipeId])
+}
+
+// ─── PRODUCTION & BATCHES ───────────────────────────────────────────────────
+
+enum PackagingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model ProductionBatch {
+  id              String           @id @default(cuid())
+  batchNumber     String           @unique
+  productId       String
+  product         Product          @relation(fields: [productId], references: [id])
+  recipeId        String?
+  recipe          BlendRecipe?     @relation(fields: [recipeId], references: [id])
+  employeeId      String
+  employee        Employee         @relation(fields: [employeeId], references: [id])
+  rawMaterialQty  Decimal          @db.Decimal(12, 3)
+  outputQty       Decimal          @db.Decimal(12, 3)
+  expectedYield   Decimal?         @db.Decimal(12, 3)
+  actualYield     Decimal?         @db.Decimal(12, 3)
+  unit            String           @default("kg")
+  status          ProductionStatus @default(PENDING)
+  packagingStatus PackagingStatus  @default(NOT_STARTED)
+  packagingType   String?
+  packagingQty    Int?             @default(0)
+  startDate       DateTime
+  endDate         DateTime?
+  completedAt     DateTime?
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  materials      BatchMaterial[]
+  inventoryItems InventoryItem[]
+  wastages       Wastage[]
+
+  @@index([status])
+  @@index([batchNumber])
+  @@index([startDate, endDate])
+  @@index([recipeId])
+}
+
+model BatchMaterial {
+  id            String          @id @default(cuid())
+  batchId       String
+  batch         ProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  rawMaterialId String
+  rawMaterial   RawMaterial     @relation(fields: [rawMaterialId], references: [id])
+  quantityUsed  Decimal         @db.Decimal(12, 3)
+  createdAt     DateTime        @default(now())
+
+  @@index([batchId])
+}
+
+// ─── SALES & INVOICES ───────────────────────────────────────────────────────
+
+model Sale {
+  id          String     @id @default(cuid())
+  orderNumber String     @unique
+  dealerId    String
+  dealer      Dealer     @relation(fields: [dealerId], references: [id])
+  status      SaleStatus @default(DRAFT)
+  totalAmount Decimal    @db.Decimal(14, 2)
+  discount    Decimal    @default(0) @db.Decimal(12, 2)
+  netAmount   Decimal    @db.Decimal(14, 2)
+  saleDate    DateTime   @default(now())
+  dispatchDate DateTime?
+  notes       String?
+  deletedAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  items    SaleItem[]
+  invoice  Invoice?
+
+  @@index([dealerId])
+  @@index([status, saleDate])
+  @@index([deletedAt])
+}
+
+model SaleItem {
+  id             String        @id @default(cuid())
+  saleId         String
+  sale           Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product       @relation(fields: [productId], references: [id])
+  inventoryItemId String
+  inventoryItem  InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  quantity       Decimal       @db.Decimal(12, 3)
+  unitPrice      Decimal       @db.Decimal(12, 2)
+  totalPrice     Decimal       @db.Decimal(14, 2)
+
+  @@index([saleId])
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  invoiceNo   String        @unique
+  saleId      String        @unique
+  sale        Sale          @relation(fields: [saleId], references: [id])
+  dealerId    String
+  dealer      Dealer        @relation(fields: [dealerId], references: [id])
+  subtotal    Decimal       @db.Decimal(14, 2)
+  taxRate     Decimal       @default(0) @db.Decimal(5, 2)
+  taxAmount   Decimal       @default(0) @db.Decimal(12, 2)
+  totalAmount Decimal       @db.Decimal(14, 2)
+  paidAmount  Decimal       @default(0) @db.Decimal(14, 2)
+  status      InvoiceStatus @default(UNPAID)
+  dueDate     DateTime
+  paidAt      DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  payments Payment[]
+
+  @@index([dealerId])
+  @@index([status, dueDate])
+  @@index([invoiceNo])
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  amount    Decimal  @db.Decimal(14, 2)
+  method    String
+  reference String?
+  paidAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+// ─── ATTENDANCE ─────────────────────────────────────────────────────────────
+
+model Attendance {
+  id         String           @id @default(cuid())
+  employeeId String
+  employee   Employee         @relation(fields: [employeeId], references: [id])
+  date       DateTime         @db.Date
+  status     AttendanceStatus @default(PRESENT)
+  checkIn    DateTime?
+  checkOut   DateTime?
+  hoursWorked Decimal?        @db.Decimal(4, 2)
+  overtime   Decimal?         @db.Decimal(4, 2)
+  notes      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([date])
+  @@index([employeeId, date])
+}
+
+// ─── GPS TRACKING ───────────────────────────────────────────────────────────
+
+model GpsLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  latitude  Decimal  @db.Decimal(10, 7)
+  longitude Decimal  @db.Decimal(10, 7)
+  accuracy  Float?
+  activity  String?
+  timestamp DateTime @default(now())
+
+  @@index([userId, timestamp])
+  @@index([timestamp])
+}
+
+// ─── WASTAGE ────────────────────────────────────────────────────────────────
+
+model Wastage {
+  id         String   @id @default(cuid())
+  batchId    String
+  batch      ProductionBatch @relation(fields: [batchId], references: [id])
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  quantity   Decimal  @db.Decimal(12, 3)
+  unit       String   @default("kg")
+  reason     String
+  category   String
+  reportedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([batchId])
+  @@index([reportedAt])
+  @@index([category])
+}
+
+// ─── AUDIT LOG ──────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entity     String
+  entityId   String
+  oldData    Json?
+  newData    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+// ─── REPORTS (Materialized snapshots) ───────────────────────────────────────
+
+model ReportSnapshot {
+  id         String   @id @default(cuid())
+  reportType String
+  period     String
+  data       Json
+  generatedAt DateTime @default(now())
+
+  @@index([reportType, period])
+  @@index([generatedAt])
+}
