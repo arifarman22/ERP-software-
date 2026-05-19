@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logout, getCurrentUser, AUTH_CONFIG } from "@/lib/auth/index";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser(req);

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { refreshAccessToken, AUTH_CONFIG } from "@/lib/auth/index";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const refreshToken = req.cookies.get(AUTH_CONFIG.cookies.refreshToken)?.value;

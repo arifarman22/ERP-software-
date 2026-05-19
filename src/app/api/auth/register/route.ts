@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { registerSchema } from "@/lib/validators/auth";
 import { successResponse, errorResponse } from "@/lib/api-response";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

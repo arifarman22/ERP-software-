@@ -3,6 +3,8 @@ import { withAuth, type AuthenticatedRequest, getPermissions, getLoginHistory } 
 import { Role } from "@prisma/client";
 import { db } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   return withAuth(req, async (authReq: AuthenticatedRequest) => {
     const user = await db.user.findUnique({

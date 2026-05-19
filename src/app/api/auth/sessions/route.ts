@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { withAuth, type AuthenticatedRequest } from "@/lib/auth/index";
 import { getActiveSessions, revokeSession, revokeAllUserSessions } from "@/lib/auth/index";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   return withAuth(req, async (authReq: AuthenticatedRequest) => {
     const sessions = await getActiveSessions(authReq.user.userId);
